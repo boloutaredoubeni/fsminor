@@ -1,0 +1,226 @@
+%{
+//
+//  Copyright 2019  Boloutare Doubeni
+//
+//    Licensed under the Apache License, Version 2.0 (the "License");
+//    you may not use this file except in compliance with the License.
+//    You may obtain a copy of the License at
+//
+//        http://www.apache.org/licenses/LICENSE-2.0
+//
+//    Unless required by applicable law or agreed to in writing, software
+//    distributed under the License is distributed on an "AS IS" BASIS,
+//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//    See the License for the specific language governing permissions and
+//    limitations under the License.
+
+open Fsminor
+open Fsminor.Syntax
+open Fsminor.Text
+
+
+let inline addtyp x = (x, Type.Generate ())
+let inline meta t = meta t
+let mutable parserInfo = ({ new obj() with override __.ToString() = "<none>"}, Range.Zero)
+let inline returnExpr< ^TMeta when ^TMeta: (member Meta: Range)> (t: ^TMeta) =
+    let range = meta t
+    parserInfo <- (box t, range)
+    t
+let inline addRangeList rs =
+    rs
+    |> List.map meta
+    |> List.reduce (+)
+%}
+
+%token <bool * Fsminor.Text.Range> BOOL
+%token <int * Fsminor.Text.Range> INT
+%token <float * Fsminor.Text.Range> FLOAT
+%token <Fsminor.Text.Range> NOT
+%token <Fsminor.Text.Range> MINUS
+%token <Fsminor.Text.Range> PLUS
+%token <Fsminor.Text.Range> MINUS_DOT
+%token <Fsminor.Text.Range> PLUS_DOT
+%token <Fsminor.Text.Range> AST_DOT
+%token <Fsminor.Text.Range> SLASH_DOT
+%token <Fsminor.Text.Range> EQUAL
+%token <Fsminor.Text.Range> LESS_GREATER
+%token <Fsminor.Text.Range> LESS_EQUAL
+%token <Fsminor.Text.Range> GREATER_EQUAL
+%token <Fsminor.Text.Range> LESS
+%token <Fsminor.Text.Range> GREATER
+%token <Fsminor.Text.Range> IF
+%token <Fsminor.Text.Range> THEN
+%token <Fsminor.Text.Range> ELSE
+%token <Fsminor.Id * Fsminor.Text.Range> IDENT
+%token <Fsminor.Text.Range> LET
+%token <Fsminor.Text.Range> IN
+%token <Fsminor.Text.Range> REC
+%token <Fsminor.Text.Range> COMMA
+%token <Fsminor.Text.Range> ARRAY_CREATE
+%token <Fsminor.Text.Range> DOT
+%token <Fsminor.Text.Range> LESS_MINUS
+%token <Fsminor.Text.Range> SEMICOLON
+%token <Fsminor.Text.Range> LPAREN
+%token <Fsminor.Text.Range> RPAREN
+%token <Fsminor.Text.Range> EOF
+%token <Fsminor.Text.Range> PRINT_INT
+%token <Fsminor.Text.Range> PRINT_FLOAT
+
+%right prec_let
+%right SEMICOLON
+%right prec_if
+%right LESS_MINUS
+%left COMMA
+%left EQUAL LESS_GREATER LESS GREATER LESS_EQUAL GREATER_EQUAL
+%left PLUS MINUS PLUS_DOT MINUS_DOT
+%left AST_DOT SLASH_DOT
+%right prec_unary_minus
+%left prec_app
+%left DOT
+
+%type <Fsminor.Syntax.Expr<Fsminor.Text.Range>> expr
+%start expr
+
+%%
+
+simple_expr:
+| LPAREN expr RPAREN
+    { returnExpr <| $2 }
+| LPAREN RPAREN
+    { returnExpr <| Unit ((+) $1 $2) }
+| BOOL
+    { returnExpr <| Bool($1) }
+| INT
+    { returnExpr <| Int($1) }
+| FLOAT
+    { returnExpr <| Float($1) }
+| IDENT
+    { returnExpr <| Var($1) }
+| simple_expr DOT LPAREN expr RPAREN
+    { returnExpr <| Get($1, $4, (+) (meta $1) ($5)) }
+
+expr:
+| simple_expr
+    { returnExpr <| $1 }
+| NOT expr
+    %prec prec_app
+    { let range = (+) $1 (meta $2) in
+      returnExpr <| Not($2, $1) }
+| MINUS expr
+    %prec prec_unary_minus
+    { let range =  $1 + (meta $2)
+      match $2 with
+      | Float(f, range) -> returnExpr <| Float(-f, range)
+      | e -> returnExpr <| Neg(e, range) }
+| expr PLUS expr
+    { let range = (+) (meta $1) (meta $3)
+      returnExpr <| Add($1, $3, range) }
+| expr MINUS expr
+    { let range = (+) (meta $1) (meta $3)
+      returnExpr <| Sub($1, $3, range) }
+| expr EQUAL expr
+    { let range = (+) (meta $1) (meta $3)
+      returnExpr <| Eq($1, $3, range) }
+| expr LESS_GREATER expr
+    { let range = (+) (meta $1) (meta $3)
+      returnExpr <| Not(Eq($1, $3, range), range) }
+| expr LESS expr
+    { let range = (+) (meta $1) (meta $3)
+      returnExpr <| Not(LE($3, $1, range), range) }
+| expr GREATER expr
+    { let range = (+) (meta $1) (meta $3)
+      returnExpr <| Not(LE($1, $3, range), range) }
+| expr LESS_EQUAL expr
+    { let range = (+) (meta $1) (meta $3)
+      returnExpr <| LE($1, $3, range) }
+| expr GREATER_EQUAL expr
+    { let range = (+) (meta $1) (meta $3)
+      returnExpr <| LE($3, $1, range) }
+| IF expr THEN expr ELSE expr
+    %prec prec_if
+    { let range = (+) ($1) (meta $6)
+      returnExpr <| If($2, $4, $6, range) }
+| MINUS_DOT expr
+    %prec prec_unary_minus
+    { let range = (+) $1 (meta $2) in
+      returnExpr <| FNeg($2, range) }
+| expr PLUS_DOT expr
+    { let range = (+) (meta $1) (meta $3)
+      returnExpr <| FAdd($1, $3, range) }
+| expr MINUS_DOT expr
+    { let range = (+) (meta $1) (meta $3)
+      returnExpr <| FSub($1, $3, range) }
+| expr AST_DOT expr
+    { let range = (+) (meta $1) (meta $3)
+      returnExpr <| FMul($1, $3, range) }
+| expr SLASH_DOT expr
+    { let range = (+) (meta $1) (meta $3)
+      returnExpr <| FDiv($1, $3, range) }
+| LET IDENT EQUAL expr IN expr
+    %prec prec_let
+    { let range = (+) ($1) (meta $6)
+      returnExpr <| Let(addtyp <| fst $2, $4, $6, range) }
+| LET REC fundef IN expr
+    %prec prec_let
+    { let range = (+) ($1) (meta $5)
+      returnExpr <| LetRec($3, $5, range) }
+| expr actual_args
+    %prec prec_app
+    { let range = (+) (meta $1) (addRangeList $2)
+      returnExpr <| App($1, $2, range) }
+| elems
+    { returnExpr <| Tuple($1, addRangeList $1) }
+| LET LPAREN pat RPAREN EQUAL expr IN expr
+    { let range = (+) ($1) (meta $8)
+      returnExpr <| LetTuple($3, $6, $8, range) }
+| simple_expr DOT LPAREN expr RPAREN LESS_MINUS expr
+    { let range = (+) (meta $1) (meta $7)
+      returnExpr <| Put($1, $4, $7, range) }
+| expr SEMICOLON expr
+    { let range = (+) (meta $1) (meta $3)
+      returnExpr <| Let((Id.GenerateTmp Type.Unit, Type.Unit), $1, $3, range) }
+
+| ARRAY_CREATE simple_expr simple_expr
+    %prec prec_app
+    { let range = (+) ($1) (meta $3)
+      returnExpr <| Array($2, $3, range) }
+| PRINT_INT expr
+    { let range = (+) $1 (meta $2)
+      returnExpr <| PrintInt($2, range) }
+| PRINT_FLOAT expr
+    { let range = (+) $1 (meta $2)
+      returnExpr <| PrintFloat($2, range) }
+| error
+    { let (t, meta) = parserInfo
+      failwithf "parse error near characters %O for %O" meta t }
+
+fundef:
+| IDENT formal_args EQUAL expr
+    { let range = (+) (snd $1)  (meta $4)
+      returnExpr <| { name = addtyp (fst $1); args = $2; body = $4; meta = range } }
+
+formal_args:
+| IDENT formal_args
+    { (addtyp (fst $1)) :: $2 }
+| IDENT
+    { [addtyp (fst $1)] }
+
+actual_args:
+| actual_args simple_expr
+    %prec prec_app
+    { $1 @ [$2] }
+| simple_expr
+    %prec prec_app
+    { [$1] }
+
+elems:
+| elems COMMA expr
+    { $1 @ [$3] }
+| expr COMMA expr
+    { [$1; $3] }
+
+pat:
+| pat COMMA IDENT
+    { $1 @ [addtyp (fst $3)] }
+| IDENT COMMA IDENT
+    { [addtyp (fst $1); addtyp (fst $3)] }

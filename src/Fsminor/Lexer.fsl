@@ -1,0 +1,128 @@
+{
+//
+//  Copyright 2019  Boloutare Doubeni
+//
+//    Licensed under the Apache License, Version 2.0 (the "License");
+//    you may not use this file except in compliance with the License.
+//    You may obtain a copy of the License at
+//
+//        http://www.apache.org/licenses/LICENSE-2.0
+//
+//    Unless required by applicable law or agreed to in writing, software
+//    distributed under the License is distributed on an "AS IS" BASIS,
+//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//    See the License for the specific language governing permissions and
+//    limitations under the License.
+module Lexer
+
+open Parser
+open Fsminor
+open Fsminor.Text
+open Fsminor.Text.Lexing
+open Microsoft.FSharp.Text.Lexing
+
+let newline = newline
+
+let makeRange (l: LexBuffer<_>) = l.Range()
+
+}
+
+let nl = ['\n'] | ['\r' '\n']
+
+let space = [' ' '\t']
+let digit = ['0'-'9']
+let lower = ['a'-'z']
+let upper = ['A'-'Z']
+
+rule token = parse
+| nl
+    { newline lexbuf;
+      token lexbuf }
+| space+
+    { token lexbuf }
+| "(*"
+    { comment lexbuf;
+      token lexbuf }
+| '('
+    { LPAREN(makeRange lexbuf) }
+| ')'
+    { RPAREN(makeRange lexbuf) }
+| "print_int"
+    { PRINT_INT(makeRange lexbuf) }
+| "print_float"
+    { PRINT_FLOAT(makeRange lexbuf) }
+| "true"
+    { BOOL(true, makeRange lexbuf) }
+| "false"
+    { BOOL(false, makeRange lexbuf) }
+| "not"
+    { NOT(makeRange lexbuf) }
+| digit+
+    { INT(int (Lexing.lexeme lexbuf), makeRange lexbuf) }
+| digit+ ('.' digit*)? (['e' 'E'] ['+' '-']? digit+)?
+    { FLOAT(float (Lexing.lexeme lexbuf), makeRange lexbuf) }
+| '-'
+    { MINUS(makeRange lexbuf) }
+| '+'
+    { PLUS(makeRange lexbuf) }
+| "-."
+    { MINUS_DOT(makeRange lexbuf) }
+| "+."
+    { PLUS_DOT(makeRange lexbuf) }
+| "*."
+    { AST_DOT(makeRange lexbuf) }
+| "/."
+    { SLASH_DOT(makeRange lexbuf) }
+| '='
+    { EQUAL(makeRange lexbuf) }
+| "<>"
+    { LESS_GREATER(makeRange lexbuf) }
+| "<="
+    { LESS_EQUAL(makeRange lexbuf) }
+| ">="
+    { GREATER_EQUAL(makeRange lexbuf) }
+| '<'
+    { LESS(makeRange lexbuf) }
+| '>'
+    { GREATER(makeRange lexbuf) }
+| "if"
+    { IF(makeRange lexbuf) }
+| "then"
+    { THEN(makeRange lexbuf) }
+| "else"
+    { ELSE(makeRange lexbuf) }
+| "let"
+    { LET(makeRange lexbuf) }
+| "in"
+    { IN(makeRange lexbuf) }
+| "rec"
+    { REC(makeRange lexbuf) }
+| ','
+    { COMMA(makeRange lexbuf) }
+| '_'
+    { IDENT(Id.GenerateTmp Type.Unit, makeRange lexbuf) }
+| "Array.create"
+    { ARRAY_CREATE(makeRange lexbuf) }
+| '.'
+    { DOT(makeRange lexbuf) }
+| "<-"
+    { LESS_MINUS(makeRange lexbuf) }
+| ';'
+    { SEMICOLON(makeRange lexbuf) }
+| eof
+    { EOF(makeRange lexbuf) }
+| lower (digit|lower|upper|'_')*
+    { IDENT(Id.Create <| Lexing.lexeme lexbuf, makeRange lexbuf) }
+| _
+    { let range = makeRange lexbuf
+      failwithf "unknown token %s near characters %O" (Lexing.lexeme lexbuf) range }
+and comment = parse
+| "*)"
+    { () }
+| "(*"
+    { comment lexbuf;
+      comment lexbuf }
+| eof
+    { Printf.eprintf "warning: unterminated comment@." }
+| _
+    { comment lexbuf }

@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.2</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <FsYacc Include="Parser.fsy">
+      <OtherFlags>--module Parser</OtherFlags>
+    </FsYacc>
+    <FsLex Include="Lexer.fsl">
+      <OtherFlags>--unicode</OtherFlags>
+    </FsLex>
+    <Compile Include="Collections.fs" />
+    <Compile Include="Type.fs" />
+    <Compile Include="Id.fs" />
+    <Compile Include="Text.fs" />
+    <Compile Include="Syntax.fs" />
+    <Compile Include="Typing.fs" />
+    <Compile Include="Parser.fsi" />
+    <Compile Include="Parser.fs" />
+    <Compile Include="Lexer.fs" />
+    <Compile Include="ANF.fs" />
+    <Compile Include="Alpha.fs" />
+    <Compile Include="Assoc.fs" />
+    <Compile Include="Beta.fs" />
+    <Compile Include="ConstFold.fs" />
+    <Compile Include="Inline.fs" />
+    <Compile Include="Elim.fs" />
+    <Compile Include="Closure.fs" />
+    <Compile Include="Emit.fs" />
+    <Compile Include="Program.fs" />
+    <None Include="paket.references" />
+    <PackageReference Include="Argu" Version="5.2.0" />
+    <PackageReference Include="LLVMSharp" Version="5.0.0" />
+    <PackageReference Include="FsLexYacc" Version="7.0.6" />
+  </ItemGroup>
+  <Import Project="..\..\.paket\Paket.Restore.targets" />
+</Project>
